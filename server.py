@@ -6,7 +6,7 @@ import traceback
 
 app = Flask(__name__)
 
-# بنقرا الـ ENV VARS من Render
+# نقرأ المتغيرات من الـ Environment (من Render)
 GUPSHUP_API_KEY = os.environ.get("GUPSHUP_API_KEY")
 GUPSHUP_SOURCE = os.environ.get("GUPSHUP_SOURCE")
 
@@ -14,13 +14,13 @@ GUPSHUP_SOURCE = os.environ.get("GUPSHUP_SOURCE")
 @app.route("/gupshup/send", methods=["POST"])
 def send_message():
     try:
-        # نستقبل الـ JSON من الريكوست
+        # استقبل JSON من الريكوست الخارجي (الموبايل / Respond.ai)
         data = request.get_json(silent=True) or {}
 
         to = data.get("to")
         message = data.get("message")
 
-        # لو ناقص to أو message
+        # لو ناقص to أو message نرجع Error واضح
         if not to or not message:
             return jsonify({
                 "ok": False,
@@ -28,7 +28,7 @@ def send_message():
                 "received_body": data
             }), 400
 
-        # نتأكد إن الـ ENV VARS متظبطة
+        # تأكد من وجود الـ API KEY و SOURCE
         if not GUPSHUP_API_KEY or not GUPSHUP_SOURCE:
             return jsonify({
                 "ok": False,
@@ -37,20 +37,22 @@ def send_message():
                 "has_source": bool(GUPSHUP_SOURCE),
             }), 500
 
-        # إعداد ريكوست Gupshup (FORM, مش JSON)
+        # URL بتاع Gupshup
         url = "https://api.gupshup.io/wa/api/v1/msg"
 
-        # Gupshup عايزة الـ message تبقى JSON string جوا form
+        # جسم الرسالة اللي هيتبعت كـ JSON string
         msg_obj = {
             "type": "text",
             "text": message
         }
 
+        # هنا بنبعت FORM مش JSON
         payload = {
             "channel": "whatsapp",
             "source": GUPSHUP_SOURCE,
+            "src.name": "009871",              # اسم الـ App بتاعك في Gupshup
             "destination": to,
-            "message": json.dumps(msg_obj),
+            "message": json.dumps(msg_obj),    # JSON string جوا الـ form
         }
 
         headers = {
@@ -58,7 +60,7 @@ def send_message():
             "Content-Type": "application/x-www-form-urlencoded"
         }
 
-        # نبعت الريكوست
+        # نبعت الريكوست لـ Gupshup
         resp = requests.post(url, data=payload, headers=headers, timeout=15)
 
         # نحاول نقرأ JSON من رد Gupshup
@@ -75,7 +77,7 @@ def send_message():
         })
 
     except Exception as e:
-        # لو حصل أي Error غير متوقّع
+        # لو حصل Error غير متوقع
         traceback.print_exc()
         return jsonify({
             "ok": False,
@@ -86,7 +88,7 @@ def send_message():
 
 @app.route("/gupshup/incoming", methods=["POST"])
 def incoming():
-    # هنا تقدر بعدين تبعت لـ Respond.ai أو تخزن في DB
+    # أي رسالة جاية من Gupshup هتظهر في اللوج هنا
     print("Incoming Message:", request.json)
     return jsonify({"ok": True})
 
@@ -97,5 +99,5 @@ def root():
 
 
 if __name__ == "__main__":
-    # تشغيل محلي، Render بيستخدم gunicorn من بره
+    # للتجربة لوكال؛ Render بيستخدم gunicorn بره
     app.run(host="0.0.0.0", port=3000)
